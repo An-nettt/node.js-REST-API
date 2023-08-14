@@ -26,8 +26,16 @@ const userSubscriptionSchema = Joi.object({
   subscription: Joi.string().required(),
 });
 
+const userVerifySchema = Joi.object({
+  email: Joi.string()
+    .required()
+    .email({ minDomainSegments: 2, tlds: { allow: ['com', 'net'] } })
+    .messages({ 'any.required': `missing required email field` }),
+});
+
 export default {
   userRegisterSchema,
   userLoginSchema,
   userSubscriptionSchema,
+  userVerifySchema,
 };

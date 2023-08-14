@@ -4,12 +4,13 @@ import fs from 'fs/promises';
 import path from 'path';
 import gravatar from 'gravatar';
 import jimp from 'jimp';
+import { nanoid } from 'nanoid';
 
 import User from '../models/user.js';
 import { ctrlWrapper } from '../decorators/index.js';
-import { HttpError } from '../helpers/index.js';
+import { HttpError, sendEmail } from '../helpers/index.js';
 
-const { JWT_SECRET } = process.env;
+const { JWT_SECRET, BASE_URL } = process.env;
 
 const avatarPath = path.resolve('public', 'avatars');
 
@@ -20,16 +21,44 @@ const register = async (req, res) => {
     throw HttpError(409, 'Email in use');
   }
   const hashPassword = await bcrypt.hash(password, 10);
+  const verificationToken = nanoid();
 
   const avatarURL = gravatar.url(email);
 
   const newUser = await User.create({
     ...req.body,
     password: hashPassword,
+    verificationToken,
     avatarURL,
   });
+
+  const verifyEmail = {
+    to: email,
+    subject: 'Verify email',
+    html: `<a href='${BASE_URL}/api/users/verify/${verificationToken}' target='_blank'> Click verify email </a>`,
+  };
+
+  await sendEmail(verifyEmail);
+
   res.status(201).json({
     user: { email: newUser.email, subscription: newUser.subscription },
+  });
+};
+
+const verify = async (req, res) => {
+  const { verificationToken } = req.params;
+  const user = await User.findOne({ verificationToken });
+  if (!user) {
+    throw HttpError(404, 'User not found');
+  }
+
+  await User.findByIdAndUpdate(user._id, {
+    verify: true,
+    verificationToken: null,
+  });
+
+  res.json({
+    message: 'Verification successful',
   });
 };
 
@@ -39,6 +68,10 @@ const login = async (req, res) => {
 
   if (!user) {
     throw HttpError(401, 'Email or password is wrong');
+  }
+
+  if (!user.verify) {
+    throw HttpError(401, 'Email not verify');
   }
   const passwordCompare = await bcrypt.compare(password, user.password);
 
@@ -108,6 +141,7 @@ const updateAvatar = async (req, res) => {
 
 export default {
   register: ctrlWrapper(register),
+  verify: ctrlWrapper(verify),
   login: ctrlWrapper(login),
   logout: ctrlWrapper(logout),
   getCurrent: ctrlWrapper(getCurrent),
