@@ -74,10 +74,6 @@ const resendVerifyEmail = async (req, res) => {
     verificationToken: user.verificationToken,
   });
 
-  console.log(email);
-  console.log(user.verificationToken);
-  console.log(resendVerifyEmail);
-
   await sendEmail(resendVerifyEmail);
 
   res.json({ message: 'Verification email sent' });
